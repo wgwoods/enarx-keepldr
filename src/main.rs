@@ -70,6 +70,8 @@ use structopt::StructOpt;
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 const AUTHORS: &str = env!("CARGO_PKG_AUTHORS");
 
+const WASMLDR: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/bin/wasmldr"));
+
 /// Prints information about your current platform
 #[derive(StructOpt)]
 struct Info {}
@@ -78,7 +80,7 @@ struct Info {}
 #[derive(StructOpt)]
 struct Exec {
     /// The payload to run inside the keep
-    code: PathBuf,
+    code: Option<PathBuf>,
 }
 
 #[derive(StructOpt)]
@@ -152,9 +154,13 @@ fn backend(backends: &[Box<dyn Backend>]) -> &dyn Backend {
 fn exec(backends: &[Box<dyn Backend>], opts: Exec) -> Result<()> {
     let backend = backend(backends);
 
-    let map = mmarinus::Kind::Private.load::<mmarinus::perms::Read, _>(&opts.code)?;
+    let keep = if opts.code.is_some() {
+        let map = mmarinus::Kind::Private.load::<mmarinus::perms::Read, _>(&opts.code.unwrap())?;
+        backend.keep(backend.shim(), &map)?
+    } else {
+        backend.keep(backend.shim(), WASMLDR)?
+    };
 
-    let keep = backend.keep(backend.shim(), &map)?;
     let mut thread = keep.clone().spawn()?.unwrap();
     loop {
         match thread.enter()? {
