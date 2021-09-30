@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use log::debug;
+use wasi_common::pipe::{ReadPipe, WritePipe};
 use wasmtime_wasi::sync::WasiCtxBuilder;
 
 /// The error codes of workload execution.
@@ -81,6 +82,12 @@ pub fn run<T: AsRef<str>, U: AsRef<str>>(
             .env(kv.0.as_ref(), kv.1.as_ref())
             .or(Err(Error::StringTableError))?;
     }
+
+    // FIXME maybe: for Hello World games, open a channel to the outside world
+    wasi = wasi
+        .stdin(Box::new(ReadPipe::new(std::io::stdin())))
+        .stdout(Box::new(WritePipe::new(std::io::stdout())))
+        .stderr(Box::new(WritePipe::new(std::io::stderr())));
 
     debug!("creating wasmtime Store");
     let mut store = wasmtime::Store::new(&engine, wasi.build());
